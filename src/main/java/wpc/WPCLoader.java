@@ -283,6 +283,12 @@ public class WPCLoader extends AbstractLibrarySupportLoader {
 			monitor.setMessage("Setting entry point…");
 			setEntryPoint(api, log);
 
+			boolean disableChecksum = getBoolOption(options, OPT_DISABLE_CHECKSUM, true);
+			if (disableChecksum) {
+				log.appendMsg("WPCLoader", "ROM checksum verification disabled by option.");
+				disableRomChecksum(api, log);
+			}
+
 			logRomInfo(api, romSize, pageCount, log);
 			monitor.setMessage("WPC ROM loaded successfully.");
 
@@ -298,8 +304,9 @@ public class WPCLoader extends AbstractLibrarySupportLoader {
 	public List<Option> getDefaultOptions(ByteProvider provider, LoadSpec loadSpec,
 			DomainObject domainObject, boolean isLoadIntoProgram, boolean mirrorFsLayout) {
 		List<Option> list = new ArrayList<>();
-		list.add(new Option(OPT_CREATE_OVERLAYS, Boolean.TRUE));
-		list.add(new Option(OPT_EXT_RAM,         Boolean.TRUE));
+		list.add(new Option(OPT_CREATE_OVERLAYS,  Boolean.TRUE));
+		list.add(new Option(OPT_DISABLE_CHECKSUM, Boolean.TRUE));
+		list.add(new Option(OPT_EXT_RAM,          Boolean.FALSE));
 		return list;
 	}
 
@@ -494,5 +501,14 @@ public class WPCLoader extends AbstractLibrarySupportLoader {
 			}
 		}
 		return defaultVal;
+	}
+
+	/** Set the ROM checksum delta to disable checksum verification in the WPC OS. */
+	private void disableRomChecksum(FlatProgramAPI api, MessageLog log) {
+		try {
+			api.setShort(api.toAddr(ADDR_CHECKSUM_DELTA), (short) 0x00FF);
+		} catch (Exception e) {
+			log.appendMsg("WPCLoader", "Could not disable ROM checksum: " + e.getMessage());
+		}
 	}
 }
