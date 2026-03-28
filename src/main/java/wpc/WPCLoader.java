@@ -30,10 +30,14 @@ import ghidra.app.util.opinion.LoaderTier;
 import ghidra.framework.model.DomainObject;
 import ghidra.program.flatapi.FlatProgramAPI;
 import ghidra.program.model.address.Address;
+import ghidra.program.model.data.DataType;
+import ghidra.program.model.data.ByteDataType;
+import ghidra.program.model.data.WordDataType;
 import ghidra.program.model.data.Pointer16DataType;
 import ghidra.program.model.lang.LanguageCompilerSpecPair;
 import ghidra.program.model.listing.Program;
 import ghidra.program.model.mem.MemoryBlock;
+import ghidra.program.model.mem.Memory;
 import ghidra.util.exception.CancelledException;
 import ghidra.util.task.TaskMonitor;
 
@@ -170,23 +174,33 @@ public class WPCLoader extends AbstractLibrarySupportLoader {
 		{ 0x3FFDL, "WPC_RAM_LOCK"                   },
 		{ 0x3FFEL, "WPC_RAM_LOCKSIZE"               },
 		{ 0x3FFFL, "WPC_ZEROCROSS_IRQ_CLEAR"        },
-		// Checksum fields in system ROM
-		{ ADDR_CHECKSUM_DELTA, "WPC_ROM_CHECKSUM_DELTA" },
-		{ ADDR_CHECKSUM,       "WPC_ROM_CHECKSUM"       },
 	};
 
 	// ── Known RAM locations ───────────────────────────────────────────────────
 
 	/** Selected OS-level RAM symbols from wpc_games reverse-engineering work. */
 	private static final Object[][] RAM_LABELS = {
-		{ 0x0008L, "FIRQ_SPRINGBOARD_1"          },
-		{ 0x000AL, "FIRQ_SPRINGBOARD_2"          },
+		{ 0x0008L, Pointer16DataType.dataType, "FIRQ_SPRINGBOARD_1"},
+		{ 0x000AL, Pointer16DataType.dataType, "FIRQ_SPRINGBOARD_2"},
+		{ 0x0011L, ByteDataType.dataType,      "BANK_SHADOW"       }, // Early ROMs offse +2
+		{ 0x0012L, Pointer16DataType.dataType, "BANK_SPRINGBOARD"  }, // 
+		// Real Time Clock
+		{ 0x1800L, WordDataType.dataType, "RTC_YEAR"   },
+		{ 0x1802L, ByteDataType.dataType, "RTC_MONTH"  },
+		{ 0x1803L, ByteDataType.dataType, "RTC_DAY"    },
+		{ 0x1803L, ByteDataType.dataType, "RTC_WEEKDAY"},
+		{ 0x1804L, ByteDataType.dataType, "RTC_HOUR"   },
+		{ 0x1805L, ByteDataType.dataType, "RTC_MINUTE" },
+		// Checksum fields in system ROM
+		{ ADDR_CHECKSUM_DELTA, WordDataType.dataType, "WPC_ROM_CHECKSUM_DELTA"},
+		{ ADDR_CHECKSUM,       WordDataType.dataType, "WPC_ROM_CHECKSUM"      },
 	};
 
 	// ── Loader options ────────────────────────────────────────────────────────
 
-	private static final String OPT_CREATE_OVERLAYS = "Create banked ROM overlays";
-	private static final String OPT_EXT_RAM         = "Create extended RAM block (DCS/WPC-95)";
+	private static final String OPT_CREATE_OVERLAYS  = "Create banked ROM overlays";
+	private static final String OPT_DISABLE_CHECKSUM = "Disable ROM checksum verification";
+	private static final String OPT_EXT_RAM          = "Create extended RAM block (DCS/WPC-95)";
 
 	// ─────────────────────────────────────────────────────────────────────────
 	// AbstractLoader overrides
@@ -395,6 +409,7 @@ public class WPCLoader extends AbstractLibrarySupportLoader {
 			String name = (String) reg[1];
 			try {
 				api.createLabel(api.toAddr(addr), name, true);
+				api.createData(api.toAddr(addr), ByteDataType.dataType);
 			} catch (Exception e) {
 				log.appendMsg("WPCLoader", "Could not create label " + name + ": " + e.getMessage());
 			}
@@ -405,9 +420,11 @@ public class WPCLoader extends AbstractLibrarySupportLoader {
 	private void applyRamLabels(FlatProgramAPI api, MessageLog log) {
 		for (Object[] entry : RAM_LABELS) {
 			long addr = (Long) entry[0];
-			String name = (String) entry[1];
+			DataType type = (DataType) entry[1];
+			String name = (String) entry[2];
 			try {
 				api.createLabel(api.toAddr(addr), name, true);
+				api.createData(api.toAddr(addr), type);
 			} catch (Exception e) {
 				log.appendMsg("WPCLoader", "Could not create RAM label " + name + ": " + e.getMessage());
 			}
