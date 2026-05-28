@@ -1,0 +1,15 @@
+name: Build WPC Loader Extension
+
+on:
+  workflow_dispatch:
+
+env:
+  JAVA_VERSION: 21
+
+jobs:
+  build-extension:
+    name: Build WPC Loader Extension
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
