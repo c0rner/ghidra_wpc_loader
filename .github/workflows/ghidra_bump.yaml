@@ -1,0 +1,129 @@
+name: Check for new Ghidra release
+# Requires secrets: APP_ID, APP_PRIVATE_KEY (from a GitHub App with
+# Pull requests: Read & Write and Contents: Read & Write permissions)
+
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+# Prevent concurrent runs from racing to create duplicate PRs/branches
+concurrency:
+  group: ghidra-version-bump
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Check Ghidra Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      should_create: ${{ steps.decision.outputs.should_create }}
+      current_version: ${{ steps.current.outputs.version }}
+      latest_version: ${{ steps.latest.outputs.version }}
+      latest_tag: ${{ steps.latest.outputs.tag }}
+
+    steps:
+      - name: Get current version from releases
+        id: current
+        run: |
+          CURRENT=$(gh release list \
+            --exclude-pre-releases \
+            --exclude-drafts \
+            --json tagName \
+            --jq 'first(.[] | select(.tagName | test("^Ghidra_"))).tagName' | sed -E 's/^Ghidra_(.*)_build$/\1/')
+          CURRENT_VERSION=$(echo "$CURRENT" | sed -E 's/^Ghidra_(.*)_build$/\1/')
+          echo "version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          echo "::notice::Current version: $CURRENT_VERSION"
+
+      - name: Get latest Ghidra release version
+        id: latest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Query releases for the latest stable Ghidra release
+          LATEST_TAG=$(gh release list \
+            --repo NationalSecurityAgency/ghidra \
+            --exclude-pre-releases \
+            --exclude-drafts \
+            --json tagName \
+            --jq 'first(.[] | select(.tagName | test("^Ghidra_"))).tagName')
+
+          if [ -z "$LATEST_TAG" ] || [ "$LATEST_TAG" = "null" ]; then
+            echo "::error::Could not determine latest Ghidra release"
+            exit 1
+          fi
+
+          # Extract version number: "Ghidra_12.x.y_build" → "12.x.y"
+          LATEST_VERSION=$(echo "$LATEST_TAG" | sed -E 's/^Ghidra_(.*)_build$/\1/')
+          echo "version=$LATEST_VERSION" >> $GITHUB_OUTPUT
+          echo "tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+          echo "Latest Ghidra version: $LATEST_VERSION (tag: $LATEST_TAG)"
+
+      - name: Validate version format
+        run: |
+          LATEST="${{ steps.latest.outputs.version }}"
+          if ! echo "$LATEST" | grep -Eq '^[0-9]+\.[0-9]+(\.[0-9]+)?$'; then
+            echo "::error::New version has unexpected format: '$LATEST'"
+            echo "::notice::Expected format: X.Y or X.Y.Z (e.g. 12.0.3)"
+            exit 1
+          fi
+          echo "::debug::Version format valid: $LATEST"
+
+      - name: Compare versions
+        id: compare
+        run: |
+          CURRENT="${{ steps.current.outputs.version }}"
+          LATEST="${{ steps.latest.outputs.version }}"
+
+          if [ "$CURRENT" = "$LATEST" ]; then
+            echo "needs_update=false" >> $GITHUB_OUTPUT
+            echo "::notice::Current version is up to date"
+          else
+            echo "needs_update=true" >> $GITHUB_OUTPUT
+            echo "::notice::Update needed: $CURRENT -> $LATEST"
+          fi
+
+      # Check if a PR for this version already exists (avoid duplicates)
+      - name: Check for existing PR
+        if: steps.compare.outputs.needs_update == 'true'
+        id: existing_pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          LATEST="${{ steps.latest.outputs.version }}"
+          BRANCH="ghidra-version-bump/$LATEST"
+
+          EXISTING=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
+          if [ -n "$EXISTING" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "::notice::PR #$EXISTING already exists for Ghidra $LATEST — skipping"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      # Check if this version was already released (tag exists)
+      - name: Check for existing tag
+        if: steps.compare.outputs.needs_update == 'true' && steps.existing_pr.outputs.exists == 'false'
+        id: existing_tag
+        run: |
+          LATEST="${{ steps.latest.outputs.version }}"
+          if git rev-parse "v$LATEST" >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "::notice::Tag v$LATEST already exists — skipping"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Decide whether to build new release
+        id: decision
+        run: |
+          if [ "${{ steps.compare.outputs.needs_update }}" = "true" ] \
+             && [ "${{ steps.existing_pr.outputs.exists }}" = "false" ] \
+             && [ "${{ steps.existing_tag.outputs.exists }}" = "false" ]; then
+            echo "should_create=true" >> $GITHUB_OUTPUT
+          else
+            echo "should_create=false" >> $GITHUB_OUTPUT
+          fi
