@@ -1,0 +1,93 @@
+name: Check for new Ghidra release
+
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+# Prevent concurrent runs from triggering duplicate builds/releases
+concurrency:
+  group: ghidra-version-bump
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Check Ghidra Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      should_create: ${{ steps.decision.outputs.should_create }}
+      latest_version: ${{ steps.latest.outputs.version }}
+
+    steps:
+      - name: Get current released version
+        id: current
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          CURRENT=$(gh release list \
+            --repo "${GITHUB_REPOSITORY}" \
+            --exclude-pre-releases \
+            --exclude-drafts \
+            --json tagName \
+            --jq 'first(.[] | select(.tagName | test("^Ghidra_"))).tagName // ""' \
+            | sed -E 's/^Ghidra_(.*)_build$/\1/')
+          echo "version=$CURRENT" >> $GITHUB_OUTPUT
+          echo "::notice::Current released version: ${CURRENT:-none}"
+
+      - name: Get latest Ghidra release version
+        id: latest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          LATEST_TAG=$(gh release list \
+            --repo NationalSecurityAgency/ghidra \
+            --exclude-pre-releases \
+            --exclude-drafts \
+            --json tagName \
+            --jq 'first(.[] | select(.tagName | test("^Ghidra_"))).tagName')
+
+          if [ -z "$LATEST_TAG" ] || [ "$LATEST_TAG" = "null" ]; then
+            echo "::error::Could not determine latest Ghidra release"
+            exit 1
+          fi
+
+          # Extract version number: "Ghidra_12.x.y_build" -> "12.x.y"
+          LATEST_VERSION=$(echo "$LATEST_TAG" | sed -E 's/^Ghidra_(.*)_build$/\1/')
+          echo "version=$LATEST_VERSION" >> $GITHUB_OUTPUT
+          echo "tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+          echo "::notice::Latest Ghidra version: $LATEST_VERSION (tag: $LATEST_TAG)"
+
+      - name: Validate version format
+        run: |
+          LATEST="${{ steps.latest.outputs.version }}"
+          if ! echo "$LATEST" | grep -Eq '^[0-9]+\.[0-9]+(\.[0-9]+)?$'; then
+            echo "::error::New version has unexpected format: '$LATEST'"
+            echo "::notice::Expected format: X.Y or X.Y.Z (e.g. 12.0.3)"
+            exit 1
+          fi
+
+      - name: Decide whether to build new release
+        id: decision
+        run: |
+          CURRENT="${{ steps.current.outputs.version }}"
+          LATEST="${{ steps.latest.outputs.version }}"
+          if [ "$CURRENT" = "$LATEST" ]; then
+            echo "::notice::Already up to date ($LATEST)"
+            echo "should_create=false" >> $GITHUB_OUTPUT
+          else
+            echo "::notice::New version available: $CURRENT -> $LATEST"
+            echo "should_create=true" >> $GITHUB_OUTPUT
+          fi
+
+  build:
+    name: Build and Release
+    needs: check
+    if: needs.check.outputs.should_create == 'true'
+    uses: ./.github/workflows/build.yaml
+    permissions:
+      contents: write
+    secrets: inherit
+    with:
+      ghidra_version: ${{ needs.check.outputs.latest_version }}

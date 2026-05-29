@@ -1,15 +1,66 @@
-name: Build WPC Loader Extension
+name: Build and Release WPC Loader
 
 on:
+  workflow_call:
+    inputs:
+      ghidra_version:
+        description: 'Ghidra version to build against (e.g. 12.1.0)'
+        type: string
+        required: true
   workflow_dispatch:
+    inputs:
+      ghidra_version:
+        description: 'Ghidra version to build against (e.g. 12.1.0)'
+        type: string
+        required: true
 
 env:
   JAVA_VERSION: 21
 
 jobs:
-  build-extension:
-    name: Build WPC Loader Extension
+  build:
+    name: Build WPC Loader for Ghidra ${{ inputs.ghidra_version }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
+
+      - name: Setup JDK
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Download Ghidra ${{ inputs.ghidra_version }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          RELEASE_TAG="Ghidra_${{ inputs.ghidra_version }}_build"
+
+          gh release download "$RELEASE_TAG" \
+            --repo NationalSecurityAgency/ghidra \
+            --pattern "ghidra_*_PUBLIC*.zip" \
+            --output ghidra.zip
+
+          unzip -q ghidra.zip -d /opt/
+          GHIDRA_DIR=$(ls -d /opt/ghidra_*/ | head -1)
+          echo "GHIDRA_INSTALL_DIR=$GHIDRA_DIR" >> $GITHUB_ENV
+          echo "::notice::Ghidra installed in: $GHIDRA_DIR"
+
+      - name: Build extension
+        run: |
+          chmod +x "$GHIDRA_INSTALL_DIR/support/gradle/gradlew"
+          "$GHIDRA_INSTALL_DIR/support/gradle/gradlew" buildExtension
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          RELEASE_TAG="Ghidra_${{ inputs.ghidra_version }}_build"
+          gh release create "$RELEASE_TAG" dist/*.zip \
+            --title "WPC Loader for Ghidra ${{ inputs.ghidra_version }}" \
+            --notes "Compatible with **Ghidra ${{ inputs.ghidra_version }}**" \
+            --latest
+          echo "::notice::New release created for Ghidra ${{ inputs.ghidra_version }}"
