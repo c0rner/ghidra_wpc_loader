@@ -42,9 +42,9 @@ jobs:
           gh release download "$RELEASE_TAG" \
             --repo NationalSecurityAgency/ghidra \
             --pattern "ghidra_*_PUBLIC*.zip" \
-            --output ghidra.zip
+            --output "$RUNNER_TEMP/ghidra.zip"
 
-          unzip -q ghidra.zip -d /opt/
+          unzip -q "$RUNNER_TEMP/ghidra.zip" -d /opt/
           GHIDRA_DIR=$(ls -d /opt/ghidra_*/ | head -1)
           echo "GHIDRA_INSTALL_DIR=$GHIDRA_DIR" >> $GITHUB_ENV
           echo "::notice::Ghidra installed in: $GHIDRA_DIR"
