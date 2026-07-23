@@ -73,11 +73,18 @@ jobs:
         run: |
           CURRENT="${{ steps.current.outputs.version }}"
           LATEST="${{ steps.latest.outputs.version }}"
-          if [ "$CURRENT" = "$LATEST" ]; then
-            echo "::notice::Already up to date ($LATEST)"
+
+          CURRENT_MM=$(echo "$CURRENT" | cut -d. -f1,2)
+          LATEST_MM=$(echo "$LATEST" | cut -d. -f1,2)
+
+          if [ -z "$CURRENT" ]; then
+            echo "::notice::No current release found. Building for latest version: $LATEST"
+            echo "should_create=true" >> $GITHUB_OUTPUT
+          elif [ "$CURRENT_MM" = "$LATEST_MM" ]; then
+            echo "::notice::No major/minor update (current: $CURRENT, latest: $LATEST). Skipping build."
             echo "should_create=false" >> $GITHUB_OUTPUT
           else
-            echo "::notice::New version available: $CURRENT -> $LATEST"
+            echo "::notice::Major/minor update detected: $CURRENT -> $LATEST"
             echo "should_create=true" >> $GITHUB_OUTPUT
           fi
 
