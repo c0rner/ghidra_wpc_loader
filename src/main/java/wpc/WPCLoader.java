@@ -318,9 +318,9 @@ public class WPCLoader extends AbstractLibrarySupportLoader {
 	public List<Option> getDefaultOptions(ByteProvider provider, LoadSpec loadSpec,
 			DomainObject domainObject, boolean isLoadIntoProgram, boolean mirrorFsLayout) {
 		List<Option> list = new ArrayList<>();
-		list.add(new Option(OPT_CREATE_OVERLAYS,  Boolean.TRUE));
-		list.add(new Option(OPT_DISABLE_CHECKSUM, Boolean.TRUE));
-		list.add(new Option(OPT_EXT_RAM,          Boolean.FALSE));
+		list.add(Option.newBoolean(OPT_CREATE_OVERLAYS).value(true).build());
+		list.add(Option.newBoolean(OPT_DISABLE_CHECKSUM).value(true).build());
+		list.add(Option.newBoolean(OPT_EXT_RAM).value(false).build());
 		return list;
 	}
 
