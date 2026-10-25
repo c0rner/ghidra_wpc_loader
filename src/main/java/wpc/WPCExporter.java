@@ -43,6 +43,12 @@ public class WPCExporter extends Exporter {
 	}
 
 	@Override
+	public boolean canExportDomainObject(Class<? extends DomainObject> domainObjectClass) {
+		// This sample exporter does not implement an export format yet.
+		return false;
+	}
+
+	@Override
 	public boolean supportsAddressRestrictedExport() {
 
 		// Return true if addrSet export parameter can be used to restrict export
@@ -64,7 +70,8 @@ public class WPCExporter extends Exporter {
 		List<Option> list = new ArrayList<>();
 
 		// If this exporter has custom options, add them to 'list'
-		list.add(new Option("Option name goes here", "Default option value goes here"));
+		list.add(Option.newString("Option name goes here")
+			.value("Default option value goes here").build());
 
 		return list;
 	}

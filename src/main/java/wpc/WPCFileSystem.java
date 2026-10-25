@@ -59,8 +59,9 @@ public class WPCFileSystem implements GFileSystem {
 	 * Mounts (opens) the file system.
 	 * 
 	 * @param monitor A cancellable task monitor.
+	 * @throws IOException if a file cannot be added to the file system index.
 	 */
-	public void mount(TaskMonitor monitor) {
+	public void mount(TaskMonitor monitor) throws IOException {
 		monitor.setMessage("Opening " + WPCFileSystem.class.getSimpleName() + "...");
 
 		// Customize how things in the file system are stored.  The following should be 

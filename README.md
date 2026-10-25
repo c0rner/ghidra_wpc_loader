@@ -145,8 +145,8 @@ whether the checksum is disabled (`delta = 0x00FF`, development mode).
 
 | Requirement | Version |
 |---|---|
-| [Ghidra](https://ghidra-sre.org/) | **12.0.4** |
-| Java | 21 (bundled with Ghidra) |
+| [Ghidra](https://ghidra-sre.org/) | **12.2** |
+| JDK | 25 |
 
 ---
 
@@ -156,14 +156,14 @@ Use gradle that is bundled with Ghidra
 
 **1. Set your Ghidra installation path**
 ```bash
-export GHIDRA_INSTALL_DIR=/path/to/ghidra_12.0.4_PUBLIC
+export GHIDRA_INSTALL_DIR="/path/to/ghidra_12.2_PUBLIC"
 ```
 
 **2. Compile:**
 
 ```bash
-/path/to/ghidra_12.0.4_PUBLIC/support/gradle/gradlew
-# → dist/ghidra_12.0.4_PUBLIC_<date>_WPCLoader.zip
+"$GHIDRA_INSTALL_DIR/support/gradle/gradlew"
+# → dist/ghidra_12.2_PUBLIC_<date>_ghidra_wpc_loader.zip
 ```
 
 **3. Install in Ghidra:**
