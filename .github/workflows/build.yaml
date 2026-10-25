@@ -4,18 +4,18 @@ on:
   workflow_call:
     inputs:
       ghidra_version:
-        description: 'Ghidra version to build against (e.g. 12.1.0)'
+        description: 'Ghidra version to build against (e.g. 12.2.0)'
         type: string
         required: true
   workflow_dispatch:
     inputs:
       ghidra_version:
-        description: 'Ghidra version to build against (e.g. 12.1.0)'
+        description: 'Ghidra version to build against (e.g. 12.2.0)'
         type: string
         required: true
 
 env:
-  JAVA_VERSION: 21
+  JAVA_VERSION: 25
 
 jobs:
   build:
